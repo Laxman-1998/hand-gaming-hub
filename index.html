@@ -15,7 +15,7 @@
     <div id="score-particle" class="score-particle-hidden">⭐</div>
     <video id="webcam" autoplay playsinline style="display:none;"></video>
 
-    <div id="multiplayer-link-modal" class="lobby-overlay" style="display:none; opacity:1;">
+    <div id="multiplayer-link-modal" class="lobby-overlay" style="display:none;">
         <div class="lobby-card">
             <h2>MULTIPLAYER ENTRANCE LOBBY</h2>
             <p>Send this secure link token to your friend. The game will automatically sync once they click it.</p>
@@ -46,25 +46,20 @@
                 <button class="skin-btn active" id="btn-neon" onclick="selectSkin('neon')">
                     <span class="skin-preview" style="color: #0ea5e9; text-shadow: 0 0 10px #0ea5e9;">⚡</span>
                     <h3>NEON GAUNTLET</h3>
-                    <p>Amplified cyber-laser skeleton loops mapping bone lines perfectly.</p>
                 </button>
-
                 <button class="skin-btn" id="btn-silhouette" onclick="selectSkin('silhouette')">
                     <span class="skin-preview" style="color: #fff; filter: drop-shadow(0 0 8px #fff);">👤</span>
                     <h3>X-RAY SHADOW</h3>
-                    <p>Hyper-inflated solid glowing silhouette masking everything else.</p>
                 </button>
-
                 <button class="skin-btn" id="btn-comic" onclick="selectSkin('comic')">
                     <span class="skin-preview">🧼</span>
                     <h3>COMIC TOON GLOVE</h3>
-                    <p>Massive, bouncy white cartoon glove running on smooth physics lag-fixes.</p>
                 </button>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
-                <button id="start-game-btn" class="ready-btn" onclick="launchGameArena(false)">PLAY VS AI (LOCAL)</button>
-                <button id="start-multiplayer-btn" class="ready-btn" onclick="setupMultiplayerMatch()">PLAY WITH A FRIEND (ONLINE)</button>
+            <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%;">
+                <button id="start-game-btn" class="ready-btn" style="background: #2563eb;" onclick="triggerLocalAiArena()">PLAY VS AI (LOCAL)</button>
+                <button id="start-multiplayer-btn" class="ready-btn" style="background: #a855f7;" onclick="triggerOnlineMultiplayer()">PLAY WITH A FRIEND (ONLINE)</button>
             </div>
         </div>
     </div>
