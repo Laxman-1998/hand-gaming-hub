@@ -14,12 +14,12 @@
     <h1>GESTURE CARROM ARENA</h1>
     <p>Prototype Simulation Matrix • Wave Hand to Slide Striker</p>
 
-    <video id="webcam" autoplay playsinline style="display:none;"></video>
-    <div id="lobby-mirror-canvas" style="display:none;"></div>
+    <video id="webcam" autoplay playsinline style="display:none; position:absolute;"></video>
+    <div id="lobby-mirror-canvas" style="display:none; position:absolute;"></div>
 
-    <div id="canvas-container" style="display: flex; justify-content: center; align-items: center; position: relative;">
-        <div id="lobby-loader" style="position: absolute; background: rgba(9,12,21,0.9); padding: 10px 20px; border-radius: 30px; color: #0ea5e9; font-weight: 700; border: 1px solid #0ea5e9; z-index: 10;">Warming AI Camera Array...</div>
-        <canvas id="carromBoard" width="500" height="500" style="z-index: 1;"></canvas>
+    <div id="canvas-container" style="position: relative; display: flex; justify-content: center; align-items: center; border: 12px solid #3e2723; border-radius: 16px; background: #fff8e1; max-width: 500px; width: 100%;">
+        <div id="lobby-loader" style="position: absolute; background: rgba(9,12,21,0.9); padding: 12px 24px; border-radius: 30px; color: #0ea5e9; font-weight: 700; border: 1px solid #0ea5e9; z-index: 10;">Warming AI Camera Array...</div>
+        <canvas id="carromBoard" width="500" height="500" style="z-index: 1; max-width: 100%; display: block;"></canvas>
     </div>
 
     <div class="hud-panel">
