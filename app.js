@@ -46,6 +46,7 @@ let isMultiplayerActive = false;
 let myPlayerIdentity = null;
 let opponentLastSubmittedMove = null;
 let myLastSubmittedMove = null;
+let cameraTrackFrameRequest = null; // Holds the frame cycle clear token
 
 // --- RETRO SYNTHESIZER AUDIO ENGINE ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -91,7 +92,12 @@ function launchGameArena(multiplayerMode = false) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     isMultiplayerActive = multiplayerMode;
     
-    // UI Updates
+    // Explicitly kill the lobby loop rendering stack to stop any lagging updates
+    if (cameraTrackFrameRequest) {
+        cancelAnimationFrame(cameraTrackFrameRequest);
+        cameraTrackFrameRequest = null;
+    }
+
     if (isMultiplayerActive) {
         document.getElementById('opponent-deck-label').innerText = "OPPONENT PLAYER";
         document.getElementById('opponent-score-label').innerText = "RIVAL";
@@ -102,18 +108,15 @@ function launchGameArena(multiplayerMode = false) {
         aiIntelHTML.innerText = "LOCAL TRAINING ARENA";
     }
 
-    // INP RESOLUTION BUFFER: Lets UI update BEFORE clearing overlay
-    setTimeout(() => {
-        document.getElementById('skin-lobby-overlay').style.opacity = '0';
-        setTimeout(() => {
-            document.getElementById('skin-lobby-overlay').style.display = 'none';
-            isArenaActive = true;
-        }, 400);
-    }, 50);
+    // Instantly hide overlay with zero processing delays
+    document.getElementById('skin-lobby-overlay').style.display = 'none';
+    isArenaActive = true;
 }
 
 // ─── ACTIVE MULTIPLAYER CONTROL CORE ───
 function setupMultiplayerMatch() {
+    // Visually let the user know the click registered instantly, bypassing INP blockages
+    document.getElementById('start-multiplayer-btn').innerText = "CONNECTING NETWORK...";
     if (audioCtx.state === 'suspended') audioCtx.resume();
     
     const urlParams = new URLSearchParams(window.location.search);
@@ -127,46 +130,48 @@ function setupMultiplayerMatch() {
     }
     currentMatchRoomId = roomId;
 
-    // Connect to open cloud WebSocket node
-    const publicClusterUrl = `wss://demo.piesocket.com/v3/${currentMatchRoomId}?api_key=VCXCEuvK8oxSI1Gs2J6gDWmXoxwRQQwYFa6e61Ls&notify_self=0`;
-    wsChannel = new WebSocket(publicClusterUrl);
+    // Async Connect step to prevent main browser tread lockups
+    setTimeout(() => {
+        const publicClusterUrl = `wss://demo.piesocket.com/v3/${currentMatchRoomId}?api_key=VCXCEuvK8oxSI1Gs2J6gDWmXoxwRQQwYFa6e61Ls&notify_self=0`;
+        wsChannel = new WebSocket(publicClusterUrl);
 
-    wsChannel.onopen = () => {
-        const absoluteInviteUrl = `${window.location.origin}${window.location.pathname}?room=${currentMatchRoomId}`;
-        document.getElementById("share-link-input").value = absoluteInviteUrl;
-        
-        if (myPlayerIdentity === "player1") {
-            // INP BUFFER: Delay modal prompt to give layout rendering bandwidth
-            setTimeout(() => {
+        wsChannel.onopen = () => {
+            document.getElementById('start-multiplayer-btn').innerText = "PLAY WITH A FRIEND (ONLINE)";
+            const absoluteInviteUrl = `${window.location.origin}${window.location.pathname}?room=${currentMatchRoomId}`;
+            document.getElementById("share-link-input").value = absoluteInviteUrl;
+            
+            if (myPlayerIdentity === "player1") {
                 document.getElementById("multiplayer-link-modal").style.display = "flex";
-                aiIntelHTML.innerText = "WAITING FOR OPPONENT TO DEPLOY LINK...";
-            }, 60);
-        } else {
-            setTimeout(() => {
+                aiIntelHTML.innerText = "WAITING FOR OPPONENT...";
+            } else {
                 wsChannel.send(JSON.stringify({ type: "PRESENCE_ENTER" }));
                 launchGameArena(true);
-            }, 500);
-        }
-    };
-
-    wsChannel.onmessage = (event) => {
-        const networkPayload = JSON.parse(event.data);
-        
-        if (networkPayload.type === "PRESENCE_ENTER" && myPlayerIdentity === "player1") {
-            document.getElementById("multiplayer-link-modal").style.display = "none";
-            wsChannel.send(JSON.stringify({ type: "PRESENCE_ACK" }));
-            launchGameArena(true);
-        }
-        else if (networkPayload.type === "PRESENCE_ACK" && myPlayerIdentity === "player2") {
-            launchGameArena(true);
-        }
-        else if (networkPayload.type === "GESTURE_SUBMIT") {
-            if (networkPayload.sender !== myPlayerIdentity) {
-                opponentLastSubmittedMove = networkPayload.gesture;
-                evaluateMultiplayerNetworkMatch();
             }
-        }
-    };
+        };
+
+        wsChannel.onmessage = (event) => {
+            const networkPayload = JSON.parse(event.data);
+            
+            if (networkPayload.type === "PRESENCE_ENTER" && myPlayerIdentity === "player1") {
+                document.getElementById("multiplayer-link-modal").style.display = "none";
+                wsChannel.send(JSON.stringify({ type: "PRESENCE_ACK" }));
+                launchGameArena(true);
+            }
+            else if (networkPayload.type === "PRESENCE_ACK" && myPlayerIdentity === "player2") {
+                launchGameArena(true);
+            }
+            else if (networkPayload.type === "GESTURE_SUBMIT") {
+                if (networkPayload.sender !== myPlayerIdentity) {
+                    opponentLastSubmittedMove = networkPayload.gesture;
+                    evaluateMultiplayerNetworkMatch();
+                }
+            }
+        };
+        
+        wsChannel.onerror = () => {
+            document.getElementById('start-multiplayer-btn').innerText = "CONNECTION FAILED. TRY AGAIN.";
+        };
+    }, 20);
 }
 
 function copyInviteLink() {
@@ -179,6 +184,7 @@ function copyInviteLink() {
 function cancelMultiplayer() {
     if (wsChannel) wsChannel.close();
     document.getElementById("multiplayer-link-modal").style.display = "none";
+    document.getElementById('start-multiplayer-btn').innerText = "PLAY WITH A FRIEND (ONLINE)";
 }
 
 let hands = new Hands({
@@ -220,7 +226,7 @@ function onResults(results) {
         } 
         else if (selectedSkin === 'silhouette') {
             activeGhost.style.display = "none";
-            renderMassiveSilhouette(landmarks, activeCtx, activeCanvas, sizeScaleNormalization);
+            renderMassiveSilhouette(landmarks, activeCtx, activeCanvas, sizeMultiplier);
         } 
         else if (selectedSkin === 'comic') {
             const baseJoint = landmarks[9];
@@ -460,18 +466,29 @@ async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
         videoElement.srcObject = stream;
-        const camera = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({ image: videoElement }); }, width: 640, height: 480
-        });
-        await camera.start();
         
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('room')) {
-            lobbyLoaderText.innerText = "Entering Link Arena Room...";
-            setupMultiplayerMatch();
-        } else {
-            lobbyLoaderText.innerText = "AI Online! Show Hand.";
-        }
+        // Use a standard requestAnimationFrame wrapper to cleanly control the pipeline
+        const cameraRun = async () => {
+            if (!isArenaActive || isMultiplayerActive || !lockedAiChoice) {
+                await hands.send({ image: videoElement });
+            }
+            cameraTrackFrameRequest = requestAnimationFrame(cameraRun);
+        };
+        
+        // Wait for MediaPipe package load confirmation checks
+        setTimeout(() => {
+            cameraTrackFrameRequest = requestAnimationFrame(cameraRun);
+            
+            // Check for room parameters AFTER the frame system is safely spinning
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('room')) {
+                lobbyLoaderText.innerText = "Connecting Online Arena Room...";
+                setupMultiplayerMatch();
+            } else {
+                lobbyLoaderText.innerText = "AI Vision Active! Wave Hand.";
+            }
+        }, 800);
+
     } catch (err) { lobbyLoaderText.innerText = "Camera Denied."; }
 }
 
