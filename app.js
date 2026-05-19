@@ -37,14 +37,16 @@ let isArenaActive = false;
 let selectedSkin = 'neon';
 let playerMoveHistory = [];
 let lerpX = 0, lerpY = 0;
-
-// ANTI-CHEAT ENGINE ASSIGNMENTS: Holds secret AI decision arrays before game snapshot resolution
 let lockedAiChoice = null;
 
-// --- MULTIPLAYER CORE INFRASTRUCTURE HOOKS ---
-let socket = null; 
+// ─── FULL-STACK ONLINE MULTIPLAYER CONFIGURATION MATRIX ───
+let socket = null;
 let currentMatchRoomId = null;
 let isMultiplayerActive = false;
+let myNetworkPlayerId = null;
+
+// FIXED LINK: Pointing directly to your active production cloud server
+const VERCEL_PROJECT_URL = "https://hand-gaming-hub.vercel.app"; 
 
 // --- RETRO SYNTHESIZER AUDIO GENERATOR ENGINE ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -87,8 +89,16 @@ function selectSkin(skinName) {
     playArcadeSound('tick');
 }
 
-function launchGameArena() {
+function launchGameArena(multiplayerMode = false) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    isMultiplayerActive = multiplayerMode;
+    
+    if (isMultiplayerActive) {
+        document.getElementById('opponent-deck-label').innerText = "OPPONENT PLAYER";
+        document.getElementById('opponent-score-label').innerText = "RIVAL";
+        aiIntelHTML.innerText = "ONLINE ROOM ACTIVE • PLAYING REAL PEER";
+    }
+
     document.getElementById('skin-lobby-overlay').style.opacity = '0';
     setTimeout(() => {
         document.getElementById('skin-lobby-overlay').style.display = 'none';
@@ -96,13 +106,67 @@ function launchGameArena() {
     }, 400);
 }
 
+// ─── ACTIVE WEB-SOCKET ROOM LINK GENERATOR PIPELINES ───
+function setupMultiplayerMatch() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('room');
+    
+    if (!roomId) {
+        roomId = Math.floor(100000 + Math.random() * 900000).toString();
+    }
+    currentMatchRoomId = roomId;
+
+    socket = io(VERCEL_PROJECT_URL, {
+        path: "/api/socket.io",
+        transports: ["websocket"]
+    });
+
+    socket.on("connect", () => {
+        myNetworkPlayerId = socket.id;
+        socket.emit("join_match_room", { roomId: currentMatchRoomId });
+        
+        const absoluteInviteUrl = `${window.location.origin}${window.location.pathname}?room=${currentMatchRoomId}`;
+        document.getElementById("share-link-input").value = absoluteInviteUrl;
+        document.getElementById("multiplayer-link-modal").style.display = "flex";
+        aiIntelHTML.innerText = "WAITING FOR OPPONENT TO ENTER LOBBY...";
+    });
+
+    socket.on("match_ready", ({ players }) => {
+        document.getElementById("multiplayer-link-modal").style.display = "none";
+        launchGameArena(true);
+    });
+
+    socket.on("round_resolved", (outcome) => {
+        resolveMultiplayerRoundResult(outcome);
+    });
+
+    socket.on("opponent_disconnected", () => {
+        statusMain.innerText = "DISCONNECTED!";
+        statusSub.innerText = "OPPONENT LEFT THE ARENA";
+        setTimeout(() => { window.location.href = window.location.pathname; }, 400);
+    });
+}
+
+function copyInviteLink() {
+    const copyTargetInput = document.getElementById("share-link-input");
+    copyTargetInput.select();
+    copyTargetInput.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(copyTargetInput.value);
+    alert("Invite code copied to your clipboard! Send it to your friend.");
+}
+
+function cancelMultiplayer() {
+    if (socket) socket.disconnect();
+    document.getElementById("multiplayer-link-modal").style.display = "none";
+}
+
 let hands = new Hands({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
 });
 hands.setOptions({
-    maxNumHands: 1, // HARD REJECTION FILTER: Safely completely drops second hand interferences
-    modelComplexity: 0, 
-    minDetectionConfidence: 0.55, minTrackingConfidence: 0.55
+    maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.55, minTrackingConfidence: 0.55
 });
 hands.onResults(onResults);
 
@@ -127,7 +191,6 @@ function onResults(results) {
         currentDetectedGesture = detectGesture(landmarks);
         detectedGestureHTML.innerText = currentDetectedGesture;
 
-        // --- DISTANCE NORMALIZATION MULTIPLIER MATH ---
         const dx = landmarks[9].x - landmarks[0].x;
         const dy = landmarks[9].y - landmarks[0].y;
         const trackedSpanDistance = Math.sqrt(dx*dx + dy*dy);
@@ -144,13 +207,10 @@ function onResults(results) {
         else if (selectedSkin === 'comic') {
             const baseJoint = landmarks[9];
             const boundingGridBox = activeWrapper.getBoundingClientRect();
-            
             const rawTargetCoordX = (1 - baseJoint.x) * boundingGridBox.width;
             const rawTargetCoordY = baseJoint.y * boundingGridBox.height;
 
-            lerpX += (rawTargetCoordX - lerpX) * 0.32;
-            lerpY += (rawTargetCoordY - lerpY) * 0.32;
-
+            lerpX += (rawTargetCoordX - lerpX) * 0.32; lerpY += (rawTargetCoordY - lerpY) * 0.32;
             activeGhost.style.left = `${lerpX - (isArenaActive ? 110 : 70)}px`;
             activeGhost.style.top = `${lerpY - (isArenaActive ? 110 : 70)}px`;
             activeGhost.style.display = "block";
@@ -168,7 +228,8 @@ function onResults(results) {
         }
     } else {
         if (isArenaActive && !isCountingDown) {
-            statusMain.innerText = "RAISE HAND"; statusSub.innerText = "TO CHALLENGE AI";
+            statusMain.innerText = "RAISE HAND"; 
+            statusSub.innerText = isMultiplayerActive ? "HOLD POSITION ON LINK" : "TO CHALLENGE AI";
             countdownNumberHTML.style.display = "none";
         }
         detectedGestureHTML.innerText = "Looking for input...";
@@ -178,48 +239,35 @@ function onResults(results) {
 }
 
 function renderMassiveNeonGauntlet(landmarks, ctx, canvas, sizeMultiplier) {
-    const center = landmarks[9];
-    const cx = center.x * canvas.width; const cy = center.y * canvas.height;
+    const center = landmarks[9]; const cx = center.x * canvas.width; const cy = center.y * canvas.height;
     ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = Math.min(24, 15 * sizeMultiplier);
     ctx.lineCap = "round"; ctx.shadowBlur = 25; ctx.shadowColor = '#0ea5e9';
-
-    const boneLinks = [
-        [0,1], [1,2], [2,3], [3,4], [0,5], [5,6], [6,7], [7,8],
-        [5,9], [9,10], [10,11], [11,12], [9,13], [13,14], [14,15], [15,16],
-        [13,17], [0,17], [17,18], [18,19], [19,20]
-    ];
+    const boneLinks = [[0,1], [1,2], [2,3], [3,4], [0,5], [5,6], [6,7], [7,8], [5,9], [9,10], [10,11], [11,12], [9,13], [13,14], [14,15], [15,16], [13,17], [0,17], [17,18], [18,19], [19,20]];
     boneLinks.forEach(([a, b]) => {
         ctx.beginPath();
-        const ax = cx + ((landmarks[a].x * canvas.width) - cx) * sizeMultiplier;
-        const ay = cy + ((landmarks[a].y * canvas.height) - cy) * sizeMultiplier;
-        const bx = cx + ((landmarks[b].x * canvas.width) - cx) * sizeMultiplier;
-        const by = cy + ((landmarks[b].y * canvas.height) - cy) * sizeMultiplier;
+        const ax = cx + ((landmarks[a].x * canvas.width) - cx) * sizeMultiplier; const ay = cy + ((landmarks[a].y * canvas.height) - cy) * sizeMultiplier;
+        const bx = cx + ((landmarks[b].x * canvas.width) - cx) * sizeMultiplier; const by = cy + ((landmarks[b].y * canvas.height) - cy) * sizeMultiplier;
         ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
     });
     ctx.fillStyle = '#f472b6'; ctx.shadowColor = '#f472b6';
     landmarks.forEach(pt => {
-        const px = cx + ((pt.x * canvas.width) - cx) * sizeMultiplier;
-        const py = cy + ((pt.y * canvas.height) - cy) * sizeMultiplier;
+        const px = cx + ((pt.x * canvas.width) - cx) * sizeMultiplier; const py = cy + ((pt.y * canvas.height) - cy) * sizeMultiplier;
         ctx.beginPath(); ctx.arc(px, py, Math.min(15, 9 * sizeMultiplier), 0, 2 * Math.PI); ctx.fill();
     });
     ctx.shadowBlur = 0;
 }
 
 function renderMassiveSilhouette(landmarks, ctx, canvas, sizeMultiplier) {
-    const center = landmarks[9];
-    const cx = center.x * canvas.width; const cy = center.y * canvas.height;
+    const center = landmarks[9]; const cx = center.x * canvas.width; const cy = center.y * canvas.height;
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.min(65, 38 * sizeMultiplier);
     ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.shadowBlur = 30; ctx.shadowColor = 'rgba(255,255,255,0.4)';
-
     const streams = [[0,1,2,3,4], [0,5,6,7,8], [0,9,10,11,12], [0,13,14,15,16], [0,17,18,19,20]];
     streams.forEach(track => {
         ctx.beginPath();
-        const startX = cx + ((landmarks[track[0]].x * canvas.width) - cx) * sizeMultiplier;
-        const startY = cy + ((landmarks[track[0]].y * canvas.height) - cy) * sizeMultiplier;
+        const startX = cx + ((landmarks[track[0]].x * canvas.width) - cx) * sizeMultiplier; const startY = cy + ((landmarks[track[0]].y * canvas.height) - cy) * sizeMultiplier;
         ctx.moveTo(startX, startY);
         for(let i=1; i<track.length; i++) {
-            const px = cx + ((landmarks[track[i]].x * canvas.width) - cx) * sizeMultiplier;
-            const py = cy + ((landmarks[track[i]].y * canvas.height) - cy) * sizeMultiplier;
+            const px = cx + ((landmarks[track[i]].x * canvas.width) - cx) * sizeMultiplier; const py = cy + ((landmarks[track[i]].y * canvas.height) - cy) * sizeMultiplier;
             ctx.lineTo(px, py);
         }
         ctx.stroke();
@@ -227,18 +275,16 @@ function renderMassiveSilhouette(landmarks, ctx, canvas, sizeMultiplier) {
     ctx.shadowBlur = 0;
 }
 
-// ANTI-CHEAT BALANCING UPDATE MODULE
 function startBattleCountdown() {
     isCountingDown = true;
     playerCard.classList.remove('pulse-win', 'pulse-lose');
     aiCard.classList.remove('pulse-win', 'pulse-lose');
     
     aiEmojiHTML.innerText = "✊";
-    aiEmojiHTML.classList.remove('ai-slam');
-    aiEmojiHTML.classList.add('ai-jelly-bounce');
+    aiEmojiHTML.classList.remove('ai-slam'); aiEmojiHTML.classList.add('ai-jelly-bounce');
 
     let count = 3;
-    statusSub.innerText = userScore >= 3 ? "⚠️ AI IS ENRAGED" : "MATCH ENGAGED";
+    statusSub.innerText = isMultiplayerActive ? "ONLINE COMBAT READY" : (userScore >= 3 ? "⚠️ AI IS ENRAGED" : "MATCH ENGAGED");
     countdownNumberHTML.style.display = "block";
 
     const interval = setInterval(() => {
@@ -247,17 +293,12 @@ function startBattleCountdown() {
             countdownNumberHTML.innerText = count;
             statusMain.innerText = count === 3 ? "ROCK!" : count === 2 ? "PAPER!" : "SCISSORS!";
             
-            // --- THE ANTI-CHEAT FIX ENGINE ---
-            // When count hits 1, AI blind-locks its prediction decision BEFORE you show your final hand shape
-            if (count === 1) {
+            if (count === 1 && !isMultiplayerActive) {
                 const slots = ["ROCK", "PAPER", "SCISSORS"];
-                const isRageModeActive = (userScore >= 3);
-
-                if (isRageModeActive) {
+                if (userScore >= 3) {
                     const rocks = playerMoveHistory.filter(m => m === 'ROCK').length;
                     const papers = playerMoveHistory.filter(m => m === 'PAPER').length;
                     const scissors = playerMoveHistory.filter(m => m === 'SCISSORS').length;
-
                     if (rocks > papers && rocks > scissors) lockedAiChoice = "PAPER";
                     else if (papers > rocks && papers > scissors) lockedAiChoice = "SCISSORS";
                     else if (scissors > rocks && scissors > papers) lockedAiChoice = "ROCK";
@@ -272,10 +313,16 @@ function startBattleCountdown() {
             playArcadeSound('shoot');
             countdownNumberHTML.style.display = "none";
             statusMain.innerText = "SHOOT! 🔥";
-            aiEmojiHTML.classList.remove('ai-jelly-bounce');
-            aiEmojiHTML.classList.add('ai-slam');
+            aiEmojiHTML.classList.remove('ai-jelly-bounce'); aiEmojiHTML.classList.add('ai-slam');
             
-            executeBattleSnap();
+            if (isMultiplayerActive) {
+                const finalPureMove = currentDetectedGesture.split(" ")[1];
+                socket.emit("submit_gesture", { roomId: currentMatchRoomId, gesture: finalPureMove });
+                statusMain.innerText = "SUBMITTED!";
+                statusSub.innerText = "WAITING FOR PEER HAND REVEAL...";
+            } else {
+                executeBattleSnap();
+            }
         }
     }, 750);
 }
@@ -292,93 +339,85 @@ function executeBattleSnap() {
     playerMoveHistory.push(pureMove);
     if (playerMoveHistory.length > 5) playerMoveHistory.shift();
 
-    // The AI uses the choice it locked at count 1, making input reading impossible!
     const aiCounterDecision = lockedAiChoice || "ROCK";
-    const isRageModeActive = (userScore >= 3);
-
-    if (isRageModeActive) {
+    if (userScore >= 3) {
         statusCardBox.classList.add('ai-boss-rage-active');
         aiIntelHTML.innerText = "AI System: Predictive Adaptation Engaged!";
     }
 
-    const botMoves = [
-        { name: "ROCK", asset: "✊" }, { name: "PAPER", asset: "🖐️" }, { name: "SCISSORS", asset: "✌️" }
-    ];
+    const botMoves = [{ name: "ROCK", asset: "✊" }, { name: "PAPER", asset: "🖐️" }, { name: "SCISSORS", asset: "✌️" }];
     const aiChoice = botMoves.find(m => m.name === aiCounterDecision);
     aiEmojiHTML.innerText = aiChoice.asset;
 
     if (pureMove === aiChoice.name) {
-        statusMain.innerText = "DRAW MATCH!";
-        statusSub.innerText = `BOTH INSTANCED ${pureMove}`;
+        statusMain.innerText = "DRAW MATCH!"; statusSub.innerText = `BOTH INSTANCED ${pureMove}`;
         triggerNextRoundBreak();
-    } else if (
-        (pureMove === "ROCK" && aiChoice.name === "SCISSORS") ||
-        (pureMove === "PAPER" && aiChoice.name === "ROCK") ||
-        (pureMove === "SCISSORS" && aiChoice.name === "PAPER")
-    ) {
-        userScore++; winStreak++;
-        playArcadeSound('win');
-        statusMain.innerText = "YOU WIN!";
-        statusSub.innerText = `${pureMove} BEATS ${aiChoice.name}`;
-        playerCard.classList.add('pulse-win');
-        updateStreakBadge();
-        
-        animateScorePoint(aiCard, userScoreBox, () => {
-            userScoreHTML.innerText = userScore;
-            triggerNextRoundBreak();
-        });
+    } else if ((pureMove === "ROCK" && aiChoice.name === "SCISSORS") || (pureMove === "PAPER" && aiChoice.name === "ROCK") || (pureMove === "SCISSORS" && aiChoice.name === "PAPER")) {
+        userScore++; winStreak++; playArcadeSound('win');
+        statusMain.innerText = "YOU WIN!"; statusSub.innerText = `${pureMove} BEATS ${aiChoice.name}`;
+        playerCard.classList.add('pulse-win'); updateStreakBadge();
+        animateScorePoint(aiCard, userScoreBox, () => { userScoreHTML.innerText = userScore; triggerNextRoundBreak(); });
     } else {
-        aiScore++; winStreak = 0;
-        playArcadeSound('lose');
-        statusMain.innerText = "AI WINS!";
-        statusSub.innerText = `${aiChoice.name} CRUSHES ${pureMove}`;
-        aiCard.classList.add('pulse-win');
-        updateStreakBadge();
-        
-        animateScorePoint(playerCard, aiScoreBox, () => {
-            aiScoreHTML.innerText = aiScore;
-            triggerNextRoundBreak();
-        });
+        aiScore++; winStreak = 0; playArcadeSound('lose');
+        statusMain.innerText = "AI WINS!"; statusSub.innerText = `${aiChoice.name} CRUSHES ${pureMove}`;
+        aiCard.classList.add('pulse-win'); updateStreakBadge();
+        animateScorePoint(playerCard, aiScoreBox, () => { aiScoreHTML.innerText = aiScore; triggerNextRoundBreak(); });
     }
-    lockedAiChoice = null; // Flush single player prediction state cache
+    lockedAiChoice = null;
+}
+
+// ─── LOCAL SCOREBOARD UPDATE PARSER FOR ONLINE PEER MATCH RESULTS ───
+function resolveMultiplayerRoundResult(outcome) {
+    const assetMap = { ROCK: "✊", PAPER: "🖐️", SCISSORS: "✌️" };
+    
+    const isImPlayer1 = (socket.id === myNetworkPlayerId);
+    const opponentMove = isImPlayer1 ? outcome.p2Move : outcome.p1Move;
+    const myMove = isImPlayer1 ? outcome.p1Move : outcome.p2Move;
+
+    aiEmojiHTML.innerText = assetMap[opponentMove] || "❓";
+
+    if (outcome.winner === "draw") {
+        statusMain.innerText = "DRAW MATCH!";
+        statusSub.innerText = `BOTH INSTANCED ${myMove}`;
+    } else if (outcome.winner === socket.id) {
+        userScore++; winStreak++; playArcadeSound('win');
+        statusMain.innerText = "YOU WIN!";
+        statusSub.innerText = `${myMove} BEATS ${opponentMove}`;
+        playerCard.classList.add('pulse-win'); updateStreakBadge();
+        animateScorePoint(aiCard, userScoreBox, () => { userScoreHTML.innerText = userScore; });
+    } else {
+        aiScore++; winStreak = 0; playArcadeSound('lose');
+        statusMain.innerText = "YOU LOSE!";
+        statusSub.innerText = `${opponentMove} SMASHES ${myMove}`;
+        aiCard.classList.add('pulse-win'); updateStreakBadge();
+        animateScorePoint(playerCard, aiScoreBox, () => { aiScoreHTML.innerText = aiScore; });
+    }
+    triggerNextRoundBreak();
 }
 
 function updateStreakBadge() {
     if (winStreak >= 2) {
-        streakCountHTML.innerText = winStreak;
-        streakBannerHTML.className = "streak-badge-active";
+        streakCountHTML.innerText = winStreak; streakBannerHTML.className = "streak-badge-active";
     } else {
         streakBannerHTML.className = "streak-badge-hidden";
     }
 }
 
 function animateScorePoint(fromElement, toElement, callback) {
-    const fromRect = fromElement.getBoundingClientRect();
-    const toRect = toElement.getBoundingClientRect();
+    const fromRect = fromElement.getBoundingClientRect(); const toRect = toElement.getBoundingClientRect();
     const startX = fromRect.left + fromRect.width / 2; const startY = fromRect.top + fromRect.height / 2;
     const endX = toRect.left + toRect.width / 2; const endY = toRect.top + toRect.height / 2;
-
-    particleHTML.className = "score-particle-fly";
-    particleHTML.style.left = `${startX}px`; particleHTML.style.top = `${startY}px`;
-
-    setTimeout(() => {
-        particleHTML.style.left = `${endX}px`; particleHTML.style.top = `${endY}px`;
-    }, 50);
-
-    setTimeout(() => {
-        particleHTML.className = "score-particle-hidden";
-        toElement.classList.add('bump-score');
-        callback();
-        setTimeout(() => toElement.classList.remove('bump-score'), 400);
-    }, 650);
+    particleHTML.className = "score-particle-fly"; particleHTML.style.left = `${startX}px`; particleHTML.style.top = `${startY}px`;
+    setTimeout(() => { particleHTML.style.left = `${endX}px`; particleHTML.style.top = `${endY}px`; }, 50);
+    setTimeout(() => { particleHTML.className = "score-particle-hidden"; toElement.classList.add('bump-score'); callback(); setTimeout(() => toElement.classList.remove('bump-score'), 400); }, 650);
 }
 
 function triggerNextRoundBreak() {
     setTimeout(() => {
         statusMain.innerText = "NEXT ROUND";
-        statusSub.innerText = "GET HAND READY...";
+        statusSub.innerText = isMultiplayerActive ? "KEEP HAND READY IN FRAME..." : "GET HAND READY...";
         setTimeout(() => { isCountingDown = false; }, 1200);
-    }, 2200);
+    }, 2400);
 }
 
 function detectGesture(landmarks) {
@@ -386,11 +425,9 @@ function detectGesture(landmarks) {
     const middleIsOpen = landmarks[12].y < landmarks[10].y;
     const ringIsOpen = landmarks[16].y < landmarks[14].y;
     const pinkyIsOpen = landmarks[20].y < landmarks[18].y;
-
     if (indexIsOpen && middleIsOpen && ringIsOpen && pinkyIsOpen) return "🖐️ PAPER";
     if (indexIsOpen && middleIsOpen && !ringIsOpen && !pinkyIsOpen) return "✌️ SCISSORS";
     if (!indexIsOpen && !middleIsOpen && !ringIsOpen && !pinkyIsOpen) return "✊ ROCK";
-
     return "Analyzing...";
 }
 
@@ -399,15 +436,18 @@ async function startCamera() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
         videoElement.srcObject = stream;
         const camera = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({ image: videoElement }); },
-            width: 640,
-            height: 480
+            onFrame: async () => { await hands.send({ image: videoElement }); }, width: 640, height: 480
         });
         await camera.start();
-        lobbyLoaderText.innerText = "AI Online! Show Hand.";
-    } catch (err) {
-        lobbyLoaderText.innerText = "Camera Denied.";
-    }
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('room')) {
+            lobbyLoaderText.innerText = "Entering Link Arena Room...";
+            setupMultiplayerMatch();
+        } else {
+            lobbyLoaderText.innerText = "AI Online! Show Hand.";
+        }
+    } catch (err) { lobbyLoaderText.innerText = "Camera Denied."; }
 }
 
 startCamera();
