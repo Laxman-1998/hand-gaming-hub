@@ -39,16 +39,15 @@ let playerMoveHistory = [];
 let lerpX = 0, lerpY = 0;
 let lockedAiChoice = null;
 
-// ─── FULL-STACK ONLINE MULTIPLAYER CONFIGURATION MATRIX ───
-let socket = null;
+// ─── UNBLOCKED SERVERLESS CLOUD ROOM MANAGER ───
+let wsChannel = null;
 let currentMatchRoomId = null;
 let isMultiplayerActive = false;
-let myNetworkPlayerId = null;
+let myPlayerIdentity = null;
+let opponentLastSubmittedMove = null;
+let myLastSubmittedMove = null;
 
-// FIXED LINK: Pointing directly to your active production cloud server
-const VERCEL_PROJECT_URL = "https://hand-gaming-hub.vercel.app"; 
-
-// --- RETRO SYNTHESIZER AUDIO GENERATOR ENGINE ---
+// --- RETRO SYNTHESIZER AUDIO ENGINE ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playArcadeSound(type) {
@@ -57,7 +56,6 @@ function playArcadeSound(type) {
         const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         const now = audioCtx.currentTime;
-
         if (type === 'tick') {
             osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
             gain.gain.setValueAtTime(0.12, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
@@ -79,7 +77,7 @@ function playArcadeSound(type) {
             gain.gain.setValueAtTime(0.18, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.38);
             osc.start(now); osc.stop(now + 0.38);
         }
-    } catch (e) { console.log(e); }
+    } catch (e) {}
 }
 
 function selectSkin(skinName) {
@@ -90,15 +88,12 @@ function selectSkin(skinName) {
 }
 
 function launchGameArena(multiplayerMode = false) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
     isMultiplayerActive = multiplayerMode;
-    
     if (isMultiplayerActive) {
         document.getElementById('opponent-deck-label').innerText = "OPPONENT PLAYER";
         document.getElementById('opponent-score-label').innerText = "RIVAL";
-        aiIntelHTML.innerText = "ONLINE ROOM ACTIVE • PLAYING REAL PEER";
+        aiIntelHTML.innerText = "ONLINE ROOM ACTIVE • MATCH ENGAGED";
     }
-
     document.getElementById('skin-lobby-overlay').style.opacity = '0';
     setTimeout(() => {
         document.getElementById('skin-lobby-overlay').style.display = 'none';
@@ -106,59 +101,68 @@ function launchGameArena(multiplayerMode = false) {
     }, 400);
 }
 
-// ─── ACTIVE WEB-SOCKET ROOM LINK GENERATOR PIPELINES ───
+// ─── PIESOCKET SECURE BROADCAST GATEWAY SETUP ───
 function setupMultiplayerMatch() {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('room');
     
     if (!roomId) {
         roomId = Math.floor(100000 + Math.random() * 900000).toString();
+        myPlayerIdentity = "player1";
+    } else {
+        myPlayerIdentity = "player2";
     }
     currentMatchRoomId = roomId;
 
-    socket = io(VERCEL_PROJECT_URL, {
-        path: "/api/socket.io",
-        transports: ["websocket"]
-    });
+    // Secure public unblocked room channel string links
+    const publicClusterUrl = `wss://demo.piesocket.com/v3/${currentMatchRoomId}?api_key=VCXCEuvK8oxSI1Gs2J6gDWmXoxwRQQwYFa6e61Ls&notify_self=0`;
+    wsChannel = new WebSocket(publicClusterUrl);
 
-    socket.on("connect", () => {
-        myNetworkPlayerId = socket.id;
-        socket.emit("join_match_room", { roomId: currentMatchRoomId });
-        
+    wsChannel.onopen = () => {
         const absoluteInviteUrl = `${window.location.origin}${window.location.pathname}?room=${currentMatchRoomId}`;
         document.getElementById("share-link-input").value = absoluteInviteUrl;
-        document.getElementById("multiplayer-link-modal").style.display = "flex";
-        aiIntelHTML.innerText = "WAITING FOR OPPONENT TO ENTER LOBBY...";
-    });
+        
+        if (myPlayerIdentity === "player1") {
+            document.getElementById("multiplayer-link-modal").style.display = "flex";
+            aiIntelHTML.innerText = "WAITING FOR OPPONENT TO DEPLOY LINK...";
+        } else {
+            // Player 2 broadcasts entry alarm ping to lock matching sync cycles
+            setTimeout(() => {
+                wsChannel.send(JSON.stringify({ type: "PRESENCE_ENTER" }));
+                launchGameArena(true);
+            }, 800);
+        }
+    };
 
-    socket.on("match_ready", ({ players }) => {
-        document.getElementById("multiplayer-link-modal").style.display = "none";
-        launchGameArena(true);
-    });
-
-    socket.on("round_resolved", (outcome) => {
-        resolveMultiplayerRoundResult(outcome);
-    });
-
-    socket.on("opponent_disconnected", () => {
-        statusMain.innerText = "DISCONNECTED!";
-        statusSub.innerText = "OPPONENT LEFT THE ARENA";
-        setTimeout(() => { window.location.href = window.location.pathname; }, 400);
-    });
+    wsChannel.onmessage = (event) => {
+        const networkPayload = JSON.parse(event.data);
+        
+        if (networkPayload.type === "PRESENCE_ENTER" && myPlayerIdentity === "player1") {
+            document.getElementById("multiplayer-link-modal").style.display = "none";
+            wsChannel.send(JSON.stringify({ type: "PRESENCE_ACK" }));
+            launchGameArena(true);
+        }
+        else if (networkPayload.type === "PRESENCE_ACK" && myPlayerIdentity === "player2") {
+            launchGameArena(true);
+        }
+        else if (networkPayload.type === "GESTURE_SUBMIT") {
+            if (networkPayload.sender !== myPlayerIdentity) {
+                opponentLastSubmittedMove = networkPayload.gesture;
+                evaluateMultiplayerNetworkMatch();
+            }
+        }
+    };
 }
 
 function copyInviteLink() {
     const copyTargetInput = document.getElementById("share-link-input");
     copyTargetInput.select();
-    copyTargetInput.setSelectionRange(0, 99999);
     navigator.clipboard.writeText(copyTargetInput.value);
-    alert("Invite code copied to your clipboard! Send it to your friend.");
+    alert("Invite code copied! Send it to your friend.");
 }
 
 function cancelMultiplayer() {
-    if (socket) socket.disconnect();
+    if (wsChannel) wsChannel.close();
     document.getElementById("multiplayer-link-modal").style.display = "none";
 }
 
@@ -176,7 +180,6 @@ function onResults(results) {
         mainCanvas.width = w; mainCanvas.height = h;
         lobbyCanvas.width = w; lobbyCanvas.height = h;
     }
-
     mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
     lobbyCtx.clearRect(0, 0, lobbyCanvas.width, lobbyCanvas.height);
 
@@ -229,7 +232,7 @@ function onResults(results) {
     } else {
         if (isArenaActive && !isCountingDown) {
             statusMain.innerText = "RAISE HAND"; 
-            statusSub.innerText = isMultiplayerActive ? "HOLD POSITION ON LINK" : "TO CHALLENGE AI";
+            statusSub.innerText = isMultiplayerActive ? "HOLD HAND STEADY" : "TO CHALLENGE AI";
             countdownNumberHTML.style.display = "none";
         }
         detectedGestureHTML.innerText = "Looking for input...";
@@ -316,10 +319,15 @@ function startBattleCountdown() {
             aiEmojiHTML.classList.remove('ai-jelly-bounce'); aiEmojiHTML.classList.add('ai-slam');
             
             if (isMultiplayerActive) {
-                const finalPureMove = currentDetectedGesture.split(" ")[1];
-                socket.emit("submit_gesture", { roomId: currentMatchRoomId, gesture: finalPureMove });
+                myLastSubmittedMove = currentDetectedGesture.split(" ")[1];
+                wsChannel.send(JSON.stringify({
+                    type: "GESTURE_SUBMIT",
+                    sender: myPlayerIdentity,
+                    gesture: myLastSubmittedMove
+                }));
                 statusMain.innerText = "SUBMITTED!";
-                statusSub.innerText = "WAITING FOR PEER HAND REVEAL...";
+                statusSub.innerText = "WAITING FOR PEER TO REVEAL...";
+                evaluateMultiplayerNetworkMatch();
             } else {
                 executeBattleSnap();
             }
@@ -334,7 +342,6 @@ function executeBattleSnap() {
         setTimeout(() => { isCountingDown = false; }, 2000);
         return;
     }
-
     const pureMove = currentDetectedGesture.split(" ")[1];
     playerMoveHistory.push(pureMove);
     if (playerMoveHistory.length > 5) playerMoveHistory.shift();
@@ -366,32 +373,37 @@ function executeBattleSnap() {
     lockedAiChoice = null;
 }
 
-// ─── LOCAL SCOREBOARD UPDATE PARSER FOR ONLINE PEER MATCH RESULTS ───
-function resolveMultiplayerRoundResult(outcome) {
+// ─── PEER-TO-PEER DATA EVALUATION RESOLUTION ENGINE ───
+function evaluateMultiplayerNetworkMatch() {
+    if (!myLastSubmittedMove || !opponentLastSubmittedMove) return;
+
     const assetMap = { ROCK: "✊", PAPER: "🖐️", SCISSORS: "✌️" };
-    
-    const isImPlayer1 = (socket.id === myNetworkPlayerId);
-    const opponentMove = isImPlayer1 ? outcome.p2Move : outcome.p1Move;
-    const myMove = isImPlayer1 ? outcome.p1Move : outcome.p2Move;
+    aiEmojiHTML.innerText = assetMap[opponentLastSubmittedMove] || "❓";
 
-    aiEmojiHTML.innerText = assetMap[opponentMove] || "❓";
-
-    if (outcome.winner === "draw") {
+    if (myLastSubmittedMove === opponentLastSubmittedMove) {
         statusMain.innerText = "DRAW MATCH!";
-        statusSub.innerText = `BOTH INSTANCED ${myMove}`;
-    } else if (outcome.winner === socket.id) {
+        statusSub.innerText = `BOTH INSTANCED ${myLastSubmittedMove}`;
+    } else if (
+        (myLastSubmittedMove === "ROCK" && opponentLastSubmittedMove === "SCISSORS") ||
+        (myLastSubmittedMove === "PAPER" && opponentLastSubmittedMove === "ROCK") ||
+        (myLastSubmittedMove === "SCISSORS" && opponentLastSubmittedMove === "PAPER")
+    ) {
         userScore++; winStreak++; playArcadeSound('win');
         statusMain.innerText = "YOU WIN!";
-        statusSub.innerText = `${myMove} BEATS ${opponentMove}`;
+        statusSub.innerText = `${myLastSubmittedMove} BEATS ${opponentLastSubmittedMove}`;
         playerCard.classList.add('pulse-win'); updateStreakBadge();
         animateScorePoint(aiCard, userScoreBox, () => { userScoreHTML.innerText = userScore; });
     } else {
         aiScore++; winStreak = 0; playArcadeSound('lose');
         statusMain.innerText = "YOU LOSE!";
-        statusSub.innerText = `${opponentMove} SMASHES ${myMove}`;
+        statusSub.innerText = `${opponentLastSubmittedMove} SMASHES ${myLastSubmittedMove}`;
         aiCard.classList.add('pulse-win'); updateStreakBadge();
         animateScorePoint(playerCard, aiScoreBox, () => { aiScoreHTML.innerText = aiScore; });
     }
+
+    // Flush local variables for next round calculations
+    myLastSubmittedMove = null;
+    opponentLastSubmittedMove = null;
     triggerNextRoundBreak();
 }
 
