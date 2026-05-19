@@ -70,7 +70,6 @@ function selectSkin(skinName) {
     playArcadeSound('tick');
 }
 
-// --- CLEAN SEPARATED BUTTON LINK ENTRIES ---
 function triggerLocalAiArena() {
     isMultiplayerActive = false;
     document.getElementById('opponent-deck-label').innerText = "AI OPPONENT";
@@ -82,9 +81,10 @@ function triggerLocalAiArena() {
 
 function triggerOnlineMultiplayer() {
     document.getElementById('start-multiplayer-btn').innerText = "INITIALIZING LOBBY...";
-    setTimeout(() => {
+    // ChatGPT Fix 2: requestAnimationFrame to prevent UI thread execution lockup
+    requestAnimationFrame(() => {
         setupMultiplayerMatch();
-    }, 50);
+    });
 }
 
 function launchMultiplayerArena() {
@@ -97,6 +97,10 @@ function launchMultiplayerArena() {
 }
 
 function setupMultiplayerMatch() {
+    const multiplayerBtn = document.getElementById('start-multiplayer-btn');
+    multiplayerBtn.disabled = true;
+    multiplayerBtn.innerText = "CONNECTING...";
+
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('room');
     
@@ -108,17 +112,35 @@ function setupMultiplayerMatch() {
     }
     currentMatchRoomId = roomId;
 
-    const publicClusterUrl = `wss://demo.piesocket.com/v3/${currentMatchRoomId}?api_key=VCXCEuvK8oxSI1Gs2J6gDWmXoxwRQQwYFa6e61Ls&notify_self=0`;
+    // ChatGPT Fix 4: Set notify_self=1 to allow echo presence alerts to resolve handshake loops
+    const publicClusterUrl = `wss://demo.piesocket.com/v3/${roomId}?api_key=VCXCEuvK8oxSI1Gs2J6gDWmXoxwRQQwYFa6e61Ls&notify_self=1`;
+    console.log("Connecting to:", publicClusterUrl);
+
     wsChannel = new WebSocket(publicClusterUrl);
 
+    // ChatGPT Fix 1: Connection safety fallback timeout loops
+    const connectionTimeout = setTimeout(() => {
+        if (wsChannel.readyState !== WebSocket.OPEN) {
+            multiplayerBtn.disabled = false;
+            multiplayerBtn.innerText = "SERVER BUSY - RETRY";
+            console.error("WebSocket connection timeout encountered.");
+            try { wsChannel.close(); } catch(e) {}
+        }
+    }, 8000);
+
     wsChannel.onopen = () => {
-        document.getElementById('start-multiplayer-btn').innerText = "PLAY WITH A FRIEND (ONLINE)";
+        clearTimeout(connectionTimeout);
+        console.log("WebSocket Connected");
+        
+        multiplayerBtn.disabled = false;
+        multiplayerBtn.innerText = "CONNECTED";
+
         const absoluteInviteUrl = `${window.location.origin}${window.location.pathname}?room=${currentMatchRoomId}`;
         document.getElementById("share-link-input").value = absoluteInviteUrl;
         
         if (myPlayerIdentity === "player1") {
             document.getElementById("multiplayer-link-modal").style.display = "flex";
-            aiIntelHTML.innerText = "WAITING FOR OPPONENT ARRIVAL...";
+            aiIntelHTML.innerText = "WAITING FOR OPPONENT...";
         } else {
             wsChannel.send(JSON.stringify({ type: "PRESENCE_ENTER" }));
             launchMultiplayerArena();
@@ -126,7 +148,15 @@ function setupMultiplayerMatch() {
     };
 
     wsChannel.onmessage = (event) => {
-        const networkPayload = JSON.parse(event.data);
+        console.log("Incoming socket matrix message packet:", event.data);
+        let networkPayload;
+        try {
+            networkPayload = JSON.parse(event.data);
+        } catch(err) {
+            console.error("Invalid JSON structural format:", err);
+            return;
+        }
+
         if (networkPayload.type === "PRESENCE_ENTER" && myPlayerIdentity === "player1") {
             document.getElementById("multiplayer-link-modal").style.display = "none";
             wsChannel.send(JSON.stringify({ type: "PRESENCE_ACK" }));
@@ -143,12 +173,21 @@ function setupMultiplayerMatch() {
         }
     };
 
-    wsChannel.onerror = () => {
-        document.getElementById('start-multiplayer-btn').innerText = "CONNECTION FAILURE. RETRY.";
+    wsChannel.onerror = (err) => {
+        console.error("WebSocket Error trace caught:", err);
+        multiplayerBtn.disabled = false;
+        multiplayerBtn.innerText = "CONNECTION TERMINATED";
+    };
+
+    wsChannel.onclose = (event) => {
+        console.warn("WebSocket Closed tracking notice:", event);
+        multiplayerBtn.disabled = false;
+        if (!isMultiplayerActive) {
+            multiplayerBtn.innerText = "PLAY WITH A FRIEND (ONLINE)";
+        }
     };
 }
 
-// BUGFIXED: Native Clipboard interaction strategy without Range selection crashes
 function copyInviteLink() {
     const linkValue = document.getElementById("share-link-input").value;
     navigator.clipboard.writeText(linkValue).then(() => {
@@ -161,7 +200,6 @@ function copyInviteLink() {
 function cancelMultiplayer() {
     if (wsChannel) wsChannel.close();
     document.getElementById("multiplayer-link-modal").style.display = "none";
-    document.getElementById('start-multiplayer-btn').innerText = "PLAY WITH A FRIEND (ONLINE)";
 }
 
 let hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
@@ -239,7 +277,6 @@ function renderMassiveNeonGauntlet(landmarks, ctx, canvas, sizeMultiplier) {
     ctx.shadowBlur = 0;
 }
 
-// RESTORED: Silhouette framework tracking lines properly
 function renderMassiveSilhouette(landmarks, ctx, canvas, sizeMultiplier) {
     const center = landmarks[9]; const cx = center.x * canvas.width; const cy = center.y * canvas.height;
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.min(65, 38 * sizeMultiplier);
@@ -281,6 +318,8 @@ function startBattleCountdown() {
             playArcadeSound('shoot');
             countdownNumberHTML.style.display = "none";
             if (isMultiplayerActive) {
+                // ChatGPT Fix 5: Array boundaries check step safely filtering out split parsing string crashes
+                if (!currentDetectedGesture.includes(" ")) return;
                 myLastSubmittedMove = currentDetectedGesture.split(" ")[1];
                 wsChannel.send(JSON.stringify({ type: "GESTURE_SUBMIT", sender: myPlayerIdentity, gesture: myLastSubmittedMove }));
                 statusMain.innerText = "SUBMITTED!"; statusSub.innerText = "WAITING FOR PEER REVEAL...";
@@ -323,40 +362,4 @@ function evaluateMultiplayerNetworkMatch() {
     if (!myLastSubmittedMove || !opponentLastSubmittedMove) return;
     aiEmojiHTML.innerText = { ROCK: "✊", PAPER: "🖐️", SCISSORS: "✌️" }[opponentLastSubmittedMove] || "❓";
     if (myLastSubmittedMove === opponentLastSubmittedMove) { statusMain.innerText = "DRAW MATCH!"; statusSub.innerText = `BOTH INSTANCED ${myLastSubmittedMove}`; }
-    else if ((myLastSubmittedMove === "ROCK" && opponentLastSubmittedMove === "SCISSORS") || (myLastSubmittedMove === "PAPER" && opponentLastSubmittedMove === "ROCK") || (myLastSubmittedMove === "SCISSORS" && opponentLastSubmittedMove === "PAPER")) {
-        userScore++; winStreak++; playArcadeSound('win'); statusMain.innerText = "YOU WIN!"; statusSub.innerText = `${myLastSubmittedMove} BEATS ${opponentLastSubmittedMove}`;
-        playerCard.classList.add('pulse-win'); updateStreakBadge(); animateScorePoint(aiCard, userScoreBox, () => { userScoreHTML.innerText = userScore; });
-    } else {
-        aiScore++; winStreak = 0; playArcadeSound('lose'); statusMain.innerText = "YOU LOSE!"; statusSub.innerText = `${opponentLastSubmittedMove} SMASHES ${myLastSubmittedMove}`;
-        aiCard.classList.add('pulse-win'); updateStreakBadge(); animateScorePoint(playerCard, aiScoreBox, () => { aiScoreHTML.innerText = aiScore; });
-    }
-    myLastSubmittedMove = null; opponentLastSubmittedMove = null; triggerNextRoundBreak();
-}
-
-function updateStreakBadge() { if (winStreak >= 2) { streakCountHTML.innerText = winStreak; streakBannerHTML.className = "streak-badge-active"; } else streakBannerHTML.className = "streak-badge-hidden"; }
-function animateScorePoint(fromElement, toElement, callback) {
-    const fR = fromElement.getBoundingClientRect(), tR = toElement.getBoundingClientRect();
-    particleHTML.className = "score-particle-fly"; particleHTML.style.left = `${fR.left + fR.width/2}px`; particleHTML.style.top = `${fR.top + fR.height/2}px`;
-    setTimeout(() => { particleHTML.style.left = `${tR.left + tR.width/2}px`; particleHTML.style.top = `${tR.top + tR.height/2}px`; }, 50);
-    setTimeout(() => { particleHTML.className = "score-particle-hidden"; toElement.classList.add('bump-score'); callback(); setTimeout(() => toElement.classList.remove('bump-score'), 400); }, 650);
-}
-function triggerNextRoundBreak() { setTimeout(() => { statusMain.innerText = "NEXT ROUND"; statusSub.innerText = isMultiplayerActive ? "KEEP HAND READY IN FRAME..." : "GET HAND READY..."; setTimeout(() => { isCountingDown = false; }, 1200); }, 2400); }
-function detectGesture(landmarks) {
-    const i = landmarks[8].y < landmarks[6].y, m = landmarks[12].y < landmarks[10].y, r = landmarks[16].y < landmarks[14].y, p = landmarks[20].y < landmarks[18].y;
-    return (i && m && r && p) ? "🖐️ PAPER" : (i && m && !r && !p) ? "✌️ SCISSORS" : (!i && !m && !r && !p) ? "✊ ROCK" : "Analyzing...";
-}
-
-async function startCamera() {
-    try {
-        videoElement.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-        await new Camera(videoElement, { onFrame: async () => { await hands.send({ image: videoElement }); }, width: 640, height: 480 }).start();
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('room')) { 
-            lobbyLoaderText.innerText = "Entering Shared Network Arena..."; 
-            setupMultiplayerMatch(); 
-        } else { 
-            lobbyLoaderText.innerText = "AI Online! Select Mode."; 
-        }
-    } catch (err) { lobbyLoaderText.innerText = "Camera Denied."; }
-}
-startCamera();
+    else if ((myLastSubmittedMove === "ROCK" && opponentLastSubmittedMove === "SCISS
