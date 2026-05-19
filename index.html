@@ -3,115 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline' ws: wss:; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';">
-    <title>AI Hand Gaming Engine Suite</title>
-    <link rel="stylesheet" href="style.css">
-    
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <title>AI Hand Gaming Hub Portal</title>
+    <style>
+        :root {
+            --bg-dark: #03050a;
+            --panel-bg: #090c15;
+            --panel-border: #1e293b;
+            --accent-cyan: #0ea5e9;
+            --accent-neon: #a855f7;
+            --text-white: #f8fafc;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body {
+            background-color: var(--bg-dark); color: var(--text-white);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;
+            background-image: radial-gradient(circle at 50% 50%, #100e26 0%, #03050a 80%);
+        }
+        .hub-container { width: 100%; max-width: 600px; text-align: center; }
+        h1 { font-size: 2.8rem; font-weight: 900; background: linear-gradient(to right, #38bdf8, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+        p { color: #64748b; font-size: 0.9rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 40px; text-transform: uppercase; }
+        
+        .menu-card {
+            background: var(--panel-bg); border: 2px solid var(--panel-border);
+            padding: 25px; border-radius: 24px; margin-bottom: 20px;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-decoration: none; color: inherit;
+        }
+        .menu-card:hover {
+            transform: translateY(-5px); border-color: var(--accent-cyan);
+            box-shadow: 0 15px 30px rgba(14, 165, 233, 0.15);
+        }
+        .menu-card.carrom:hover {
+            border-color: var(--accent-neon);
+            box-shadow: 0 15px 30px rgba(168, 85, 247, 0.15);
+        }
+        .icon { font-size: 3rem; }
+        .title { font-size: 1.4rem; font-weight: 800; color: #fff; }
+        .desc { font-size: 0.85rem; color: #475569; font-weight: 600; line-height: 1.4; }
+    </style>
 </head>
 <body>
 
-    <div id="score-particle" class="score-particle-hidden">⭐</div>
-    <video id="webcam" autoplay playsinline style="display:none;"></video>
+    <div class="hub-container">
+        <h1>AI GESTURE LOBBY HUB</h1>
+        <p>Next-Gen Vision Engine Suite Portfolio</p>
 
-    <div id="multiplayer-link-modal" class="lobby-overlay" style="display:none;">
-        <div class="lobby-card">
-            <h2>MULTIPLAYER ENTRANCE LOBBY</h2>
-            <p>Send this secure link token to your friend. The game will automatically sync once they click it.</p>
-            
-            <div class="mirror-box" style="aspect-ratio: auto; padding: 20px; height: auto;">
-                <input type="text" id="share-link-input" readonly style="width: 100%; background: #111625; border: 1px solid #273549; color: #38bdf8; padding: 12px; border-radius: 12px; font-weight: 700; text-align: center; font-size: 0.9rem;">
-            </div>
+        <a href="rock-paper-scissors/index.html" class="menu-card">
+            <div class="icon">🎮</div>
+            <div class="title">ROCK PAPER SCISSORS (LOCAL AI)</div>
+            <div class="desc">Battle the predictive computer engine layers utilizing interactive high-detail computer vision tracking nodes.</div>
+        </a>
 
-            <div style="display: flex; gap: 15px; justify-content: center;">
-                <button type="button" class="ready-btn" onclick="copyInviteLink()" style="background: #0ea5e9;">COPY LINK</button>
-                <button type="button" class="ready-btn" onclick="cancelMultiplayer()" style="background: #ef4444; box-shadow: none;">CANCEL</button>
-            </div>
-        </div>
+        <a href="carrom-gaming-hub/index.html" class="menu-card carrom">
+            <div class="icon">🥏</div>
+            <div class="title">GESTURE CARROM ARENA (MULTIPLE LAYERS)</div>
+            <div class="desc">Test your strike angles, charge your strength gauge from level 1 to 3, and view physical vector reflections live.</div>
+        </a>
     </div>
 
-    <div id="skin-lobby-overlay" class="lobby-overlay">
-        <div class="lobby-card">
-            <h2>SELECT YOUR AVATAR SIGNATURE</h2>
-            <p>Wave your hand to preview the standardized massive effects live before combat</p>
-            
-            <div class="mirror-box">
-                <canvas id="lobby-mirror-canvas"></canvas>
-                <div id="lobby-ghost-hand" class="giant-hand-sprite lobby-ghost-style">🖐️</div>
-                <div class="mirror-status" id="lobby-loader">Warming AI Vision...</div>
-            </div>
-
-            <div class="skin-grid">
-                <button type="button" class="skin-btn active" id="btn-neon" onclick="selectSkin('neon')">
-                    <span class="skin-preview" style="color: #0ea5e9; text-shadow: 0 0 10px #0ea5e9;">⚡</span>
-                    <h3>NEON GAUNTLET</h3>
-                </button>
-                <button type="button" class="skin-btn" id="btn-silhouette" onclick="selectSkin('silhouette')">
-                    <span class="skin-preview" style="color: #fff; filter: drop-shadow(0 0 8px #fff);">👤</span>
-                    <h3>X-RAY SHADOW</h3>
-                </button>
-                <button type="button" class="skin-btn" id="btn-comic" onclick="selectSkin('comic')">
-                    <span class="skin-preview">🧼</span>
-                    <h3>COMIC TOON GLOVE</h3>
-                </button>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%;">
-                <button type="button" id="start-game-btn" class="ready-btn" style="background: #2563eb;" onclick="triggerLocalAiArena()">PLAY VS AI (LOCAL)</button>
-                <button type="button" id="start-multiplayer-btn" class="ready-btn" style="background: #a855f7;" onclick="triggerOnlineMultiplayer()">PLAY WITH A FRIEND (ONLINE)</button>
-                
-                <a href="carrom-gaming-hub/index.html" style="margin-top: 10px; color: #a855f7; font-weight: 700; text-decoration: none; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">
-                    🥏 Switch to Carrom Arena Sandbox →
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <div class="app-container">
-        <header>
-            <h1>AI Hand Gaming Engine</h1>
-            <p>Privacy Preserved • Intelligent Adaptive Core</p>
-        </header>
-
-        <main class="battle-arena">
-            <div class="arena-deck player-deck">
-                <div class="deck-title">YOUR VIRTUAL RENDER</div>
-                <div class="display-canvas-wrapper" id="player-card">
-                    <canvas id="output-canvas"></canvas>
-                    <div id="player-hand-avatar" class="giant-hand-sprite">🖐️</div>
-                </div>
-                <div class="score-card" id="user-score-box">
-                    <span class="score-label">YOU</span>
-                    <span id="user-score" class="score-num">0</span>
-                </div>
-            </div>
-
-            <div class="center-theater">
-                <div class="vs-badge">VS</div>
-                <div class="center-status-card" id="status-card-box">
-                    <div id="battle-countdown-number">3</div>
-                    <div id="battle-status-main">READY</div>
-                    <div id="battle-status-sub">RAISE HAND TO FIGHT</div>
-                </div>
-                <div class="ai-brain-intel" id="ai-intelligence-status">SYSTEM READY</div>
-                <div class="streak-badge-hidden" id="streak-banner">🔥 STREAK: <span id="streak-count">0</span></div>
-                <div class="gesture-feedback">Detected: <span id="detected-gesture">None</span></div>
-            </div>
-
-            <div class="arena-deck ai-deck">
-                <div class="deck-title" id="opponent-deck-label">AI OPPONENT</div>
-                <div class="display-canvas-wrapper" id="ai-card">
-                    <div id="ai-emoji" class="battle-emoji">🤖</div>
-                </div>
-                <div class="score-card" id="ai-score-box">
-                    <span class="score-label" id="opponent-score-label">AI CORE</span>
-                    <span id="ai-score" class="score-num">0</span>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script src="app.js"></script>
 </body>
 </html>
