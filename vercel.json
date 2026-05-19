@@ -1,15 +1,10 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/index.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "style.css", "use": "@vercel/static" },
-    { "src": "app.js", "use": "@vercel/static" }
-  ],
+  "cleanUrls": true,
   "routes": [
     {
-      "src": "/api/socket.io(.*)",
-      "dest": "api/index.js"
+      "src": "/carrom-gaming-hub/(.*)",
+      "dest": "/carrom-gaming-hub/$1"
     },
     {
       "src": "/(.*)",
