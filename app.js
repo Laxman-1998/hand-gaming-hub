@@ -28,9 +28,15 @@ let isCountingDown = false, isArenaActive = false;
 let currentDetectedGesture = "None", selectedSkin = 'neon';
 let playerMoveHistory = [], lerpX = 0, lerpY = 0, lockedAiChoice = null;
 
-let wsChannel = null, currentMatchRoomId = null, isMultiplayerActive = false;
-let myPlayerIdentity = null, opponentLastSubmittedMove = null, myLastSubmittedMove = null;
-let hasArenaLaunched = false, isConnectingToLobby = false;
+// ─── PRODUCTION PUSHER CLIENT SYNC STACK ───
+let pusherClient = null;
+let networkChannel = null;
+let currentMatchRoomId = null;
+let isMultiplayerActive = false;
+let myPlayerIdentity = null;
+let opponentLastSubmittedMove = null;
+let myLastSubmittedMove = null;
+let hasArenaLaunched = false;
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -71,11 +77,6 @@ function selectSkin(skinName) {
     playArcadeSound('tick');
 }
 
-function safeSocketSend(payload) {
-    if (!wsChannel || wsChannel.readyState !== WebSocket.OPEN) return;
-    wsChannel.send(JSON.stringify(payload));
-}
-
 function triggerLocalAiArena() {
     isMultiplayerActive = false;
     document.getElementById('opponent-deck-label').innerText = "AI OPPONENT";
@@ -85,15 +86,8 @@ function triggerLocalAiArena() {
     isArenaActive = true;
 }
 
-function triggerOnlineMultiplayer(event) {
-    if (event) { event.preventDefault(); event.stopPropagation(); }
-    if (isConnectingToLobby) return;
-    isConnectingToLobby = true;
-
-    const btn = document.getElementById('start-multiplayer-btn');
-    btn.disabled = true;
-    btn.innerText = "CONNECTING...";
-
+function triggerOnlineMultiplayer() {
+    document.getElementById('start-multiplayer-btn').innerText = "CONNECTING GRID...";
     requestAnimationFrame(() => {
         setupMultiplayerMatch();
     });
@@ -111,107 +105,75 @@ function launchMultiplayerArena() {
     isArenaActive = true;
 }
 
+// ─── UNBLOCKED PUSHER INFRASTRUCTURE ENGINE IMPLEMENTATION ───
 function setupMultiplayerMatch() {
     const btn = document.getElementById('start-multiplayer-btn');
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('room');
 
     if (!roomId) {
-        roomId = Math.random().toString(36).substring(2, 8);
+        roomId = Math.floor(100000 + Math.random() * 900000).toString();
         myPlayerIdentity = "host";
     } else {
         myPlayerIdentity = "guest";
     }
     currentMatchRoomId = roomId;
-    console.log("ROOM ID:", roomId);
 
-    // FIXED WEB-SOCKET GATEWAY: Pointing to a high-availability public broker channel
-    wsChannel = new WebSocket(`wss://pubsub.apes.io/v1/room_${roomId}`);
+    // Secure multi-tenant global clusters routing through standard web port protocols (unblockable)
+    pusherClient = new Pusher('de529dfaa6c6ca5e7b23', {
+        cluster: 'ap2',
+        forceTLS: true
+    });
 
-    const timeout = setTimeout(() => {
-        if (wsChannel.readyState !== WebSocket.OPEN) {
-            btn.disabled = false;
-            btn.innerText = "SERVER TIMEOUT - RETRY";
-            isConnectingToLobby = false;
-            try { wsChannel.close(); } catch(e){}
-        }
-    }, 8000);
+    networkChannel = pusherClient.subscribe(`room-${roomId}`);
 
-    wsChannel.onopen = () => {
-        clearTimeout(timeout);
-        console.log("Socket connected cleanly.");
-        btn.disabled = false;
+    networkChannel.bind('pusher:subscription_succeeded', () => {
         btn.innerText = "CONNECTED";
-        isConnectingToLobby = false;
-
         const inviteLink = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
         document.getElementById("share-link-input").value = inviteLink;
 
         if (myPlayerIdentity === "host") {
             document.getElementById("multiplayer-link-modal").style.display = "flex";
-            aiIntelHTML.innerText = "WAITING FOR OPPONENT...";
+            aiIntelHTML.innerText = "WAITING FOR RIVAL...";
         } else {
-            safeSocketSend({ type: "PLAYER_JOINED" });
+            // Guest triggers execution sync event to host across pipeline parameters
+            setTimeout(() => {
+                networkChannel.trigger(`client-sync-event`, { type: "PLAYER_JOINED" });
+            }, 300);
             launchMultiplayerArena();
         }
-    };
+    });
 
-    wsChannel.onmessage = (event) => {
-        let payload;
-        try {
-            payload = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-
-        if (payload.type === "PLAYER_JOINED" && myPlayerIdentity === "host") {
+    networkChannel.bind('client-sync-event', (data) => {
+        if (data.type === "PLAYER_JOINED" && myPlayerIdentity === "host") {
             document.getElementById("multiplayer-link-modal").style.display = "none";
-            safeSocketSend({ type: "START_GAME" });
+            networkChannel.trigger(`client-sync-event`, { type: "START_GAME" });
             launchMultiplayerArena();
         }
-        else if (payload.type === "START_GAME" && myPlayerIdentity === "guest") {
+        else if (data.type === "START_GAME" && myPlayerIdentity === "guest") {
             launchMultiplayerArena();
         }
-        else if (payload.type === "PLAYER_MOVE") {
-            if (payload.player !== myPlayerIdentity) {
-                opponentLastSubmittedMove = payload.move;
+        else if (data.type === "PLAYER_MOVE") {
+            if (data.player !== myPlayerIdentity) {
+                opponentLastSubmittedMove = data.move;
                 evaluateMultiplayerNetworkMatch();
             }
         }
-    };
-
-    wsChannel.onerror = (err) => {
-        console.error("Socket Error caught:", err);
-        btn.disabled = false;
-        btn.innerText = "CONNECTION FAILURE";
-        isConnectingToLobby = false;
-    };
-
-    wsChannel.onclose = () => {
-        console.warn("Socket Closed gracefully.");
-        btn.disabled = false;
-        btn.innerText = "PLAY WITH A FRIEND (ONLINE)";
-        hasArenaLaunched = false;
-        isConnectingToLobby = false;
-        myLastSubmittedMove = null;
-        opponentLastSubmittedMove = null;
-    };
+    });
 }
 
 function copyInviteLink() {
     const link = document.getElementById("share-link-input").value;
     navigator.clipboard.writeText(link).then(() => {
         alert("Invite link copied!");
-    }).catch(() => {
-        alert(link);
     });
 }
 
 function cancelMultiplayer() {
-    try { if (wsChannel) { wsChannel.close(); } } catch(e){}
+    if (pusherClient) pusherClient.unsubscribe(`room-${currentMatchRoomId}`);
     document.getElementById("multiplayer-link-modal").style.display = "none";
+    document.getElementById('start-multiplayer-btn').innerText = "PLAY WITH A FRIEND (ONLINE)";
     hasArenaLaunched = false;
-    isConnectingToLobby = false;
 }
 
 let hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
@@ -220,18 +182,15 @@ hands.onResults(onResults);
 
 function onResults(results) {
     if (mainCanvas.width !== videoElement.videoWidth) {
-        const w = videoElement.videoWidth || 640;
-        const h = videoElement.videoHeight || 480;
+        const w = videoElement.videoWidth || 640; const h = videoElement.videoHeight || 480;
         mainCanvas.width = w; mainCanvas.height = h;
-        lobbyCanvas.width = w; lobbyCanvas.height = h;
     }
     mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
     lobbyCtx.clearRect(0, 0, lobbyCanvas.width, lobbyCanvas.height);
 
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
         lobbyLoaderText.style.display = "none";
-        const landmarks = results.multiHandLandmarks[0];
-        currentDetectedGesture = detectGesture(landmarks);
+        currentDetectedGesture = detectGesture(results.multiHandLandmarks[0]);
         detectedGestureHTML.innerText = currentDetectedGesture;
 
         if (isArenaActive && !isCountingDown && currentDetectedGesture !== "Analyzing...") {
@@ -260,18 +219,17 @@ function startBattleCountdown() {
             countdownNumberHTML.style.display = "none";
 
             if (isMultiplayerActive) {
-                if (!currentDetectedGesture.includes(" ")) {
-                    isCountingDown = false;
-                    return;
-                }
+                if (!currentDetectedGesture.includes(" ")) { isCountingDown = false; return; }
                 myLastSubmittedMove = currentDetectedGesture.split(" ")[1];
-                safeSocketSend({
+                
+                networkChannel.trigger(`client-sync-event`, {
                     type: "PLAYER_MOVE",
                     player: myPlayerIdentity,
                     move: myLastSubmittedMove
                 });
+                
                 statusMain.innerText = "MOVE SUBMITTED";
-                statusSub.innerText = "WAITING FOR OPPONENT";
+                statusSub.innerText = "WAITING FOR RIVAL REVEAL...";
                 evaluateMultiplayerNetworkMatch();
             } else {
                 executeBattleSnap();
@@ -282,10 +240,8 @@ function startBattleCountdown() {
 
 function executeBattleSnap() {
     if (currentDetectedGesture === "No hand detected" || currentDetectedGesture === "Analyzing...") {
-        statusMain.innerText = "TIMEOUT";
-        statusSub.innerText = "HOLD HAND STEADY";
-        isCountingDown = false;
-        return;
+        statusMain.innerText = "TIMEOUT"; statusSub.innerText = "HOLD HAND STEADY";
+        isCountingDown = false; return;
     }
     const pureMove = currentDetectedGesture.split(" ")[1];
     const slots = ["ROCK", "PAPER", "SCISSORS"];
@@ -299,50 +255,35 @@ function evaluateMultiplayerNetworkMatch() {
     if (!myLastSubmittedMove || !opponentLastSubmittedMove) return;
     aiEmojiHTML.innerText = opponentLastSubmittedMove === "ROCK" ? "✊" : opponentLastSubmittedMove === "PAPER" ? "🖐️" : "✌️";
     evaluateWinner(myLastSubmittedMove, opponentLastSubmittedMove);
-    myLastSubmittedMove = null;
-    opponentLastSubmittedMove = null;
+    myLastSubmittedMove = null; opponentLastSubmittedMove = null;
 }
 
 function evaluateWinner(playerMove, enemyMove) {
     if (playerMove === enemyMove) {
-        statusMain.innerText = "DRAW";
-        statusSub.innerText = `${playerMove} vs ${enemyMove}`;
+        statusMain.innerText = "DRAW"; statusSub.innerText = `${playerMove} vs ${enemyMove}`;
     } else if (
         (playerMove === "ROCK" && enemyMove === "SCISSORS") ||
         (playerMove === "PAPER" && enemyMove === "ROCK") ||
         (playerMove === "SCISSORS" && enemyMove === "PAPER")
     ) {
-        userScore++;
-        userScoreHTML.innerText = userScore;
-        statusMain.innerText = "YOU WIN";
-        statusSub.innerText = `${playerMove} beats ${enemyMove}`;
+        userScore++; userScoreHTML.innerText = userScore;
+        statusMain.innerText = "YOU WIN"; statusSub.innerText = `${playerMove} beats ${enemyMove}`;
         playArcadeSound('win');
     } else {
-        aiScore++;
-        aiScoreHTML.innerText = aiScore;
-        statusMain.innerText = "YOU LOSE";
-        statusSub.innerText = `${enemyMove} beats ${playerMove}`;
+        aiScore++; aiScoreHTML.innerText = aiScore;
+        statusMain.innerText = "YOU LOSE"; statusSub.innerText = `${enemyMove} beats ${playerMove}`;
         playArcadeSound('lose');
     }
-    setTimeout(() => {
-        isCountingDown = false;
-    }, 1800);
+    setTimeout(() => { isCountingDown = false; }, 1800);
 }
 
 function detectGesture(landmarks) {
-    const i = landmarks[8].y < landmarks[6].y;
-    const m = landmarks[12].y < landmarks[10].y;
-    const r = landmarks[16].y < landmarks[14].y;
-    const p = landmarks[20].y < landmarks[18].y;
+    const i = landmarks[8].y < landmarks[6].y, m = landmarks[12].y < landmarks[10].y, r = landmarks[16].y < landmarks[14].y, p = landmarks[20].y < landmarks[18].y;
     if (i && m && r && p) return "🖐️ PAPER";
     if (i && m && !r && !p) return "✌️ SCISSORS";
     if (!i && !m && !r && !p) return "✊ ROCK";
     return "Analyzing...";
 }
-
-window.addEventListener('beforeunload', () => {
-    try { if (wsChannel) { wsChannel.close(); } } catch(e){}
-});
 
 async function startCamera() {
     try {
@@ -355,9 +296,6 @@ async function startCamera() {
         } else {
             lobbyLoaderText.innerText = "AI ONLINE • SELECT MODE";
         }
-    } catch(err) {
-        console.error(err);
-        lobbyLoaderText.innerText = "CAMERA ACCESS DENIED";
-    }
+    } catch(err) { lobbyLoaderText.innerText = "CAMERA ACCESS DENIED"; }
 }
 startCamera();
