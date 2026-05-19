@@ -1,9 +1,9 @@
 {
   "name": "hand-gaming-hub",
   "version": "1.0.0",
-  "description": "AI and Multiplayer Hand Gaming Engine",
-  "main": "api/index.js",
-  "dependencies": {
-    "socket.io": "^4.7.5"
-  }
+  "description": "AI Hand Gesture Gaming Engine Suite Portfolio",
+  "scripts": {
+    "start": "echo 'No build step required. Serving static directory structure natively.'"
+  },
+  "dependencies": {}
 }
