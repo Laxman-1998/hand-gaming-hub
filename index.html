@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline' ws: wss:; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';">
     <title>AI Hand Gaming Engine</title>
     <link rel="stylesheet" href="style.css">
     
@@ -25,8 +25,8 @@
             </div>
 
             <div style="display: flex; gap: 15px; justify-content: center;">
-                <button class="ready-btn" onclick="copyInviteLink()" style="background: var(--accent-cyan);">COPY LINK</button>
-                <button class="ready-btn" onclick="cancelMultiplayer()" style="background: var(--danger); box-shadow: none;">CANCEL</button>
+                <button class="ready-btn" onclick="copyInviteLink()" style="background: #0ea5e9;">COPY LINK</button>
+                <button class="ready-btn" onclick="cancelMultiplayer()" style="background: #ef4444; box-shadow: none;">CANCEL</button>
             </div>
         </div>
     </div>
@@ -64,7 +64,7 @@
 
             <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
                 <button id="start-game-btn" class="ready-btn" onclick="launchGameArena(false)">PLAY VS AI (LOCAL)</button>
-                <button id="start-multiplayer-btn" class="ready-btn" onclick="setupMultiplayerMatch()" style="background: linear-gradient(to right, #a855f7, #ec4899); box-shadow: 0 10px 25px rgba(168, 85, 247, 0.3);">PLAY WITH A FRIEND (ONLINE)</button>
+                <button id="start-multiplayer-btn" class="ready-btn" onclick="setupMultiplayerMatch()">PLAY WITH A FRIEND (ONLINE)</button>
             </div>
         </div>
     </div>
