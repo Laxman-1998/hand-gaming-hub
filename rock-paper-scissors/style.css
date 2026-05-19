@@ -13,7 +13,7 @@
 body {
     background-color: var(--bg-dark); color: var(--text-white);
     display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;
-    background-image: radial-gradient(circle at 50% 50%, #100e26 0%, #03050a 80%); overflow: hidden;
+    background-image: radial-gradient(circle at 50% 50%, #100e26 0%, #03050a 80%); overflow: auto;
 }
 
 .app-container { width: 100%; max-width: 1200px; }
