@@ -25,8 +25,8 @@
             </div>
 
             <div style="display: flex; gap: 15px; justify-content: center;">
-                <button class="ready-btn" onclick="copyInviteLink()" style="background: #0ea5e9;">COPY LINK</button>
-                <button class="ready-btn" onclick="cancelMultiplayer()" style="background: #ef4444; box-shadow: none;">CANCEL</button>
+                <button type="button" class="ready-btn" onclick="copyInviteLink()" style="background: #0ea5e9;">COPY LINK</button>
+                <button type="button" class="ready-btn" onclick="cancelMultiplayer()" style="background: #ef4444; box-shadow: none;">CANCEL</button>
             </div>
         </div>
     </div>
@@ -43,23 +43,23 @@
             </div>
 
             <div class="skin-grid">
-                <button class="skin-btn active" id="btn-neon" onclick="selectSkin('neon')">
+                <button type="button" class="skin-btn active" id="btn-neon" onclick="selectSkin('neon')">
                     <span class="skin-preview" style="color: #0ea5e9; text-shadow: 0 0 10px #0ea5e9;">⚡</span>
                     <h3>NEON GAUNTLET</h3>
                 </button>
-                <button class="skin-btn" id="btn-silhouette" onclick="selectSkin('silhouette')">
+                <button type="button" class="skin-btn" id="btn-silhouette" onclick="selectSkin('silhouette')">
                     <span class="skin-preview" style="color: #fff; filter: drop-shadow(0 0 8px #fff);">👤</span>
                     <h3>X-RAY SHADOW</h3>
                 </button>
-                <button class="skin-btn" id="btn-comic" onclick="selectSkin('comic')">
+                <button type="button" class="skin-btn" id="btn-comic" onclick="selectSkin('comic')">
                     <span class="skin-preview">🧼</span>
                     <h3>COMIC TOON GLOVE</h3>
                 </button>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%;">
-                <button id="start-game-btn" class="ready-btn" style="background: #2563eb;" onclick="triggerLocalAiArena()">PLAY VS AI (LOCAL)</button>
-                <button id="start-multiplayer-btn" class="ready-btn" style="background: #a855f7;" onclick="triggerOnlineMultiplayer()">PLAY WITH A FRIEND (ONLINE)</button>
+                <button type="button" id="start-game-btn" class="ready-btn" style="background: #2563eb;" onclick="triggerLocalAiArena()">PLAY VS AI (LOCAL)</button>
+                <button type="button" id="start-multiplayer-btn" class="ready-btn" style="background: #a855f7;" onclick="triggerOnlineMultiplayer()">PLAY WITH A FRIEND (ONLINE)</button>
             </div>
         </div>
     </div>
