@@ -88,21 +88,34 @@ function selectSkin(skinName) {
 }
 
 function launchGameArena(multiplayerMode = false) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     isMultiplayerActive = multiplayerMode;
+    
+    // UI Updates
     if (isMultiplayerActive) {
         document.getElementById('opponent-deck-label').innerText = "OPPONENT PLAYER";
         document.getElementById('opponent-score-label').innerText = "RIVAL";
         aiIntelHTML.innerText = "ONLINE ROOM ACTIVE • MATCH ENGAGED";
+    } else {
+        document.getElementById('opponent-deck-label').innerText = "AI OPPONENT";
+        document.getElementById('opponent-score-label').innerText = "AI CORE";
+        aiIntelHTML.innerText = "LOCAL TRAINING ARENA";
     }
-    document.getElementById('skin-lobby-overlay').style.opacity = '0';
+
+    // INP RESOLUTION BUFFER: Lets UI update BEFORE clearing overlay
     setTimeout(() => {
-        document.getElementById('skin-lobby-overlay').style.display = 'none';
-        isArenaActive = true;
-    }, 400);
+        document.getElementById('skin-lobby-overlay').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('skin-lobby-overlay').style.display = 'none';
+            isArenaActive = true;
+        }, 400);
+    }, 50);
 }
 
-// ─── PIESOCKET SECURE BROADCAST GATEWAY SETUP ───
+// ─── ACTIVE MULTIPLAYER CONTROL CORE ───
 function setupMultiplayerMatch() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('room');
     
@@ -114,7 +127,7 @@ function setupMultiplayerMatch() {
     }
     currentMatchRoomId = roomId;
 
-    // Secure public unblocked room channel string links
+    // Connect to open cloud WebSocket node
     const publicClusterUrl = `wss://demo.piesocket.com/v3/${currentMatchRoomId}?api_key=VCXCEuvK8oxSI1Gs2J6gDWmXoxwRQQwYFa6e61Ls&notify_self=0`;
     wsChannel = new WebSocket(publicClusterUrl);
 
@@ -123,14 +136,16 @@ function setupMultiplayerMatch() {
         document.getElementById("share-link-input").value = absoluteInviteUrl;
         
         if (myPlayerIdentity === "player1") {
-            document.getElementById("multiplayer-link-modal").style.display = "flex";
-            aiIntelHTML.innerText = "WAITING FOR OPPONENT TO DEPLOY LINK...";
+            // INP BUFFER: Delay modal prompt to give layout rendering bandwidth
+            setTimeout(() => {
+                document.getElementById("multiplayer-link-modal").style.display = "flex";
+                aiIntelHTML.innerText = "WAITING FOR OPPONENT TO DEPLOY LINK...";
+            }, 60);
         } else {
-            // Player 2 broadcasts entry alarm ping to lock matching sync cycles
             setTimeout(() => {
                 wsChannel.send(JSON.stringify({ type: "PRESENCE_ENTER" }));
                 launchGameArena(true);
-            }, 800);
+            }, 500);
         }
     };
 
@@ -158,7 +173,7 @@ function copyInviteLink() {
     const copyTargetInput = document.getElementById("share-link-input");
     copyTargetInput.select();
     navigator.clipboard.writeText(copyTargetInput.value);
-    alert("Invite code copied! Send it to your friend.");
+    alert("Invite link copied! Send it to your friend.");
 }
 
 function cancelMultiplayer() {
@@ -373,7 +388,6 @@ function executeBattleSnap() {
     lockedAiChoice = null;
 }
 
-// ─── PEER-TO-PEER DATA EVALUATION RESOLUTION ENGINE ───
 function evaluateMultiplayerNetworkMatch() {
     if (!myLastSubmittedMove || !opponentLastSubmittedMove) return;
 
@@ -401,7 +415,6 @@ function evaluateMultiplayerNetworkMatch() {
         animateScorePoint(playerCard, aiScoreBox, () => { aiScoreHTML.innerText = aiScore; });
     }
 
-    // Flush local variables for next round calculations
     myLastSubmittedMove = null;
     opponentLastSubmittedMove = null;
     triggerNextRoundBreak();
