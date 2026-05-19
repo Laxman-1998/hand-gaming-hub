@@ -70,21 +70,18 @@ function selectSkin(skinName) {
     playArcadeSound('tick');
 }
 
-// --- BUTTON DECOUPLING INFRASTRUCTURE ---
+// --- CLEAN SEPARATED BUTTON LINK ENTRIES ---
 function triggerLocalAiArena() {
     isMultiplayerActive = false;
     document.getElementById('opponent-deck-label').innerText = "AI OPPONENT";
     document.getElementById('opponent-score-label').innerText = "AI CORE";
     aiIntelHTML.innerText = "LOCAL TRAINING ARENA";
-    
-    // Clear menu array and wake loop frame
     document.getElementById('skin-lobby-overlay').style.display = 'none';
     isArenaActive = true;
 }
 
 function triggerOnlineMultiplayer() {
-    document.getElementById('start-multiplayer-btn').innerText = "INITIALIZING PORT...";
-    // Micro-task isolation step to resolve INP issues completely
+    document.getElementById('start-multiplayer-btn').innerText = "INITIALIZING LOBBY...";
     setTimeout(() => {
         setupMultiplayerMatch();
     }, 50);
@@ -95,7 +92,6 @@ function launchMultiplayerArena() {
     document.getElementById('opponent-deck-label').innerText = "OPPONENT PLAYER";
     document.getElementById('opponent-score-label').innerText = "RIVAL";
     aiIntelHTML.innerText = "ONLINE ROOM ACTIVE • MATCH ENGAGED";
-    
     document.getElementById('skin-lobby-overlay').style.display = 'none';
     isArenaActive = true;
 }
@@ -122,7 +118,7 @@ function setupMultiplayerMatch() {
         
         if (myPlayerIdentity === "player1") {
             document.getElementById("multiplayer-link-modal").style.display = "flex";
-            aiIntelHTML.innerText = "WAITING FOR OPPONENT LOBBY ARRIVAL...";
+            aiIntelHTML.innerText = "WAITING FOR OPPONENT ARRIVAL...";
         } else {
             wsChannel.send(JSON.stringify({ type: "PRESENCE_ENTER" }));
             launchMultiplayerArena();
@@ -152,11 +148,14 @@ function setupMultiplayerMatch() {
     };
 }
 
+// BUGFIXED: Native Clipboard interaction strategy without Range selection crashes
 function copyInviteLink() {
-    const copyTargetInput = document.getElementById("share-link-input");
-    copyTargetInput.select();
-    navigator.clipboard.writeText(copyTargetInput.value);
-    alert("Link copied!");
+    const linkValue = document.getElementById("share-link-input").value;
+    navigator.clipboard.writeText(linkValue).then(() => {
+        alert("Invite link copied to clipboard successfully!");
+    }).catch(() => {
+        alert("Link: " + linkValue);
+    });
 }
 
 function cancelMultiplayer() {
@@ -240,6 +239,7 @@ function renderMassiveNeonGauntlet(landmarks, ctx, canvas, sizeMultiplier) {
     ctx.shadowBlur = 0;
 }
 
+// RESTORED: Silhouette framework tracking lines properly
 function renderMassiveSilhouette(landmarks, ctx, canvas, sizeMultiplier) {
     const center = landmarks[9]; const cx = center.x * canvas.width; const cy = center.y * canvas.height;
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.min(65, 38 * sizeMultiplier);
