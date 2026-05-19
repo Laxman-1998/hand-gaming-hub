@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Carrom Hub Prototype</title>
+    <style>
+        :root { --bg-dark: #05070f; --board-wood: #3e2723; --board-surface: #fff8e1; }
+        body { background: var(--bg-dark); color: #fff; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        h1 { margin-bottom: 5px; background: linear-gradient(to right, #38bdf8, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { color: #64748b; font-size: 0.9rem; margin-bottom: 20px; text-transform: uppercase; font-weight: bold; }
+        #canvas-container { position: relative; border: 12px solid var(--board-wood); border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); background: var(--board-surface); }
+        canvas { display: block; cursor: crosshair; }
+        .hud-panel { display: flex; gap: 40px; margin-top: 20px; background: #0f172a; padding: 15px 30px; border-radius: 50px; border: 1px solid #1e293b; }
+        .hud-stat { font-weight: 800; font-size: 1.1rem; }
+        #power-label { color: #f43f5e; }
+        .back-btn { margin-top: 15px; background: none; border: 1px solid #334155; color: #94a3b8; padding: 8px 20px; border-radius: 20px; cursor: pointer; text-decoration: none; font-size: 0.85rem; font-weight: bold; }
+        .back-btn:hover { background: #1e293b; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <h1>GESTURE CARROM ARENA</h1>
+    <p>Prototype Simulation Matrix • Click & Hold to Charge Strike</p>
+
+    <div id="canvas-container">
+        <canvas id="carromBoard" width="500" height="500"></canvas>
+    </div>
+
+    <div class="hud-panel">
+        <div class="hud-stat">AIM STRATEGY: <span id="aim-label" style="color: #0ea5e9;">0°</span></div>
+        <div class="hud-stat">STRIKE IMPULSE: <span id="power-label">LEVEL 0</span></div>
+    </div>
+
+    <a href="../index.html" class="back-btn">← BACK TO LOBBY HUB</a>
+
+    <script src="app.js"></script>
+</body>
+</html>
