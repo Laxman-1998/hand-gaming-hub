@@ -1,6 +1,8 @@
 {
   "name": "hand-gaming-hub",
   "version": "1.0.0",
+  "description": "AI and Multiplayer Hand Gaming Engine",
+  "main": "api/index.js",
   "dependencies": {
     "socket.io": "^4.7.5"
   }
