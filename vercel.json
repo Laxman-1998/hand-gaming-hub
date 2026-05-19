@@ -1,14 +1,5 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "routes": [
-    {
-      "src": "/carrom-gaming-hub/(.*)",
-      "dest": "/carrom-gaming-hub/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ]
+  "trailingSlash": false
 }
