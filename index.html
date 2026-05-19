@@ -1,8 +1,65 @@
-<div style="display: flex; flex-direction: column; gap: 15px; align-items: center; width: 100%; max-width: 400px; margin: 40px auto 0 auto;">
-    <a href="index.html" class="ready-btn" style="background: linear-gradient(to right, #0ea5e9, #2563eb); text-decoration: none; text-align: center; width: 100%; padding: 18px 0; border-radius: 30px;">
-        🎮 PLAY ROCK PAPER SCISSORS
-    </a>
-    <a href="carrom-gaming-hub/index.html" class="ready-btn" style="background: linear-gradient(to right, #a855f7, #ec4899); text-decoration: none; text-align: center; width: 100%; padding: 18px 0; border-radius: 30px;">
-        🥏 ENTER CARROM ARENA PROTOTYPE
-    </a>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Hand Gaming Hub Portal</title>
+    <style>
+        :root {
+            --bg-dark: #03050a;
+            --panel-bg: #090c15;
+            --panel-border: #1e293b;
+            --accent-cyan: #0ea5e9;
+            --accent-neon: #a855f7;
+            --text-white: #f8fafc;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body {
+            background-color: var(--bg-dark); color: var(--text-white);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;
+            background-image: radial-gradient(circle at 50% 50%, #100e26 0%, #03050a 80%);
+        }
+        .hub-container { width: 100%; max-width: 600px; text-align: center; }
+        h1 { font-size: 2.8rem; font-weight: 900; background: linear-gradient(to right, #38bdf8, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+        p { color: #64748b; font-size: 0.9rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 40px; text-transform: uppercase; }
+        
+        .menu-card {
+            background: var(--panel-bg); border: 2px solid var(--panel-border);
+            padding: 25px; border-radius: 24px; margin-bottom: 20px;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-decoration: none; color: inherit;
+        }
+        .menu-card:hover {
+            transform: translateY(-5px); border-color: var(--accent-cyan);
+            box-shadow: 0 15px 30px rgba(14, 165, 233, 0.15);
+        }
+        .menu-card.carrom:hover {
+            border-color: var(--accent-neon);
+            box-shadow: 0 15px 30px rgba(168, 85, 247, 0.15);
+        }
+        .icon { font-size: 3rem; }
+        .title { font-size: 1.4rem; font-weight: 800; color: #fff; }
+        .desc { font-size: 0.85rem; color: #475569; font-weight: 600; line-height: 1.4; }
+    </style>
+</head>
+<body>
+
+    <div class="hub-container">
+        <h1>AI GESTURE LOBBY HUB</h1>
+        <p>Next-Gen Vision Engine Suite Portfolio</p>
+
+        <a href="app.js" class="menu-card" onclick="alert('Launching Arena Systems...');">
+            <div class="icon">🎮</div>
+            <div class="title">ROCK PAPER SCISSORS (LOCAL AI)</div>
+            <div class="desc">Battle the predictive computer engine layers utilizing interactive high-detail computer vision tracking nodes.</div>
+        </a>
+
+        <a href="carrom-gaming-hub/index.html" class="menu-card carrom">
+            <div class="icon">🥏</div>
+            <div class="title">GESTURE CARROM ARENA (SANDBOX VIEW)</div>
+            <div class="desc">Test your strike angles and look at the physical vector collision reflections live on our vector canvas layout engine.</div>
+        </a>
+    </div>
+
+</body>
+</html>
