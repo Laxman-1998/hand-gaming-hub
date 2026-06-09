@@ -3,6 +3,7 @@ const canvas = document.getElementById('carromBoard');
 const ctx = canvas.getContext('2d');
 const aimLabel = document.getElementById('aim-label');
 const powerLabel = document.getElementById('power-label');
+const lobbyLoaderText = document.getElementById('lobby-loader');
 
 // --- VECTOR PHYSICS CONSTANTS ---
 const FRICTION = 0.982;
